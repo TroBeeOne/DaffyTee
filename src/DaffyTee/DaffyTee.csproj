@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DaffyTee</RootNamespace>
+    <AssemblyName>daffytee</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Unlike DaffyDB there is no native library to carry, so one RID-agnostic tool package serves
+    every platform and no per-RID split is needed.
+  -->
+  <PropertyGroup>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>daffytee</ToolCommandName>
+    <PackageId>DaffyTee</PackageId>
+    <Version>0.3.2</Version>
+    <Authors>TroBeeOne LLC</Authors>
+    <Company>TroBeeOne LLC</Company>
+    <Copyright>Copyright (c) 2026 Scott Traube and TroBeeOne LLC</Copyright>
+    <Title>DaffyTee</Title>
+    <Description>A database gateway that lets existing applications reach SQL Server and Azure SQL through an identity you control, and records everything they do - without changing the application or the database. Clients connect to DaffyTee as if it were SQL Server; it authenticates them with its own logins, logs in to the target as the identity mapped to each (a SQL login, or an Entra ID application for Azure SQL), follows Azure SQL redirects, and every request (SQL, parameters, user, timing, rows, errors) is streamed asynchronously to RabbitMQ or a file - for troubleshooting, performance analysis, security investigations, compliance and migration planning - without slowing the database path. Administered at its own prompt, or in T-SQL from SSMS (EXEC daffytee.help). Passwords are never logged. Early release.</Description>
+    <PackageTags>sql-server;azure-sql;gateway;entra-id;tds;proxy;audit;compliance;security;monitoring;performance;migration;rabbitmq;dotnet-tool</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://trobee.one</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/TroBeeOne/DaffyTee</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>0.3.2: DaffyTee is now licensed under the MIT License; versions up to 0.3.1 were published under the Business Source License 1.1. The ODBC driver and OLE DB provider that ship with Windows (Driver={SQL Server}, Provider=SQLOLEDB), which speak TDS 7.1, can connect: their logins were refused as password changes. Connect them with Encrypt=no; DaffyTee still encrypts the session. Their requests and replies are decoded in events, the SQL log and transcripts. A client that hangs up before logging in is logged with the reason, such as not trusting DaffyTee's certificate. The login log line names the client library and its option flags, and JDBC 13.4's USERAGENT feature. 0.3.1: datetime values with a time of day after 00:02:23 - parameters, table-valued parameter columns and OUTPUT values - were shown with the right date and the wrong time in events, the SQL log, :watch, :recent and daffytee.recent. They are right again, to the millisecond as SQL Server shows them, and the SQL log writes them in a form datetime accepts. The relay and --raw bytes were never affected. The rows of a server cursor's fetch (sp_cursorfetch), whose column metadata came with the cursor's open, are no longer read as tokens; the event's detailProblem says why they were not decoded. 0.3.0: Administration in T-SQL. Admin logins - the first made on the host with daffytee user admin NAME on - run EXEC daffytee.help from SSMS or their own code to see sessions, health, settings, recent events and DaffyTee's log, end sessions, adjust sampling, bulk and raw capture, and manage logins and their targets. DaffyTee answers these daffytee.* commands itself; they never reach SQL Server. Every admin command, and every refused attempt, is captured whatever the tee is set to, with its passwords masked; switching the tee off and purging the queue stay on the host. 0.2.0: Azure SQL Database as a target. DaffyTee follows Azure SQL's Redirect connection policy (and read-only routing) itself, so clients never connect around it; events record the node a session ran on (routedTo). A target mapping can log in as an Entra ID application (Authentication=ActiveDirectoryServicePrincipal, client secret) - an application that only knows SQL logins can reach a database that expects Entra ID. A login the target refuses for the client's own request (4060, 40613) reaches the client under its own error number, so retry logic works. On Windows, DaffyTee can add its self-signed certificate to the current user's trusted roots - offered once on first run, or with daffytee cert trust - so clients that cannot be told TrustServerCertificate=True, such as Power BI's SQL Server connector, can connect. Described as a database gateway. 0.1.1: passwords written into SQL are masked in events and the SQL log by default (--no-redact turns it off).</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <!--
+    The package page gets NUGET.md rather than the repository README, which is written for someone
+    with the source checked out. THIRD-PARTY-NOTICES.txt travels with the package because a tool
+    package bundles its dependencies' binaries, which is redistribution. (As in DaffyDB.)
+  -->
+  <ItemGroup>
+    <None Include="..\..\NUGET.md" Pack="true" PackagePath="README.md" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DaffyTee.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" Version="7.2.2" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

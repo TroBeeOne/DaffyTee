@@ -1,0 +1,87 @@
+# Test environment for DaffyTee: a real SQL Server to relay to, and (later) RabbitMQ to publish to.
+#
+#   docker compose -f docker/compose.yml up -d                        SQL Server only
+#   docker compose -f docker/compose.yml --profile rabbit up -d       ...and RabbitMQ
+#   docker compose -f docker/compose.yml --profile clickhouse up -d   ...and ClickHouse, reading
+#                                                                        every event from RabbitMQ
+#
+# ClickHouse is a demonstration consumer, not part of DaffyTee: docs/END-TO-END.md walks through
+# the whole setup.
+#
+# SQL Server is published on 14333 rather than 1433, because 1433 is where DaffyTee itself listens.
+# The passwords below are for a throwaway local container and nothing else; override them in
+# docker/.env (git-ignored) if you want different ones.
+#
+# Both keep their data in named volumes, and restart with Docker: databases, logins, queues and
+# messages survive a reboot, a Docker restart and "docker compose down". Only "down -v" (or
+# deleting the volumes) starts them from scratch - then run seed.sql again.
+
+name: daffytee
+
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-DaffyTee!Dev2026}
+    ports:
+      - "14333:1433"
+    volumes:
+      - sql-data:/var/opt/mssql
+      - ./seed.sql:/seed/seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  rabbit:
+    image: rabbitmq:4-management
+    profiles: ["rabbit", "clickhouse"]
+    restart: unless-stopped
+    # RabbitMQ files its data under its node name, which comes from the host name: a fixed one keeps
+    # a recreated container on the same data.
+    hostname: daffytee-rabbit
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # management UI: http://localhost:15672 (guest / guest)
+    volumes:
+      - rabbit-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.9
+    profiles: ["clickhouse"]
+    restart: unless-stopped
+    depends_on:
+      rabbit:
+        condition: service_healthy
+    environment:
+      CLICKHOUSE_DB: daffytee
+      CLICKHOUSE_USER: daffytee
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-DaffyTee!Dev2026}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "8123:8123"     # HTTP, and the SQL console: http://localhost:8123/play (daffytee / DaffyTee!Dev2026)
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # runs once, on a new volume
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  sql-data:
+  rabbit-data:
+  clickhouse-data:

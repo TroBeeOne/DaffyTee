@@ -1,0 +1,16 @@
+# Reference material, kept out of this repository on purpose (it has its own history).
+ContextInfo/
+
+bin/
+obj/
+.vs/
+*.user
+nupkg/
+captures/
+transcripts/
+TestResults/
+docker/.env
+
+# What a local "daffytee" run writes into the directory it was started from.
+sql-*.log
+daffytee-events-*.ndjson
